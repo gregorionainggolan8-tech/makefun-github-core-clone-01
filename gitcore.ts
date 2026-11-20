@@ -302,7 +302,7 @@ export function parseCommit(data: Buffer): CommitInfo {
   const text = data.toString('utf8');
   const split = text.indexOf('\n\n');
   const head = split === -1 ? text : text.slice(0, split);
-  const message = split === -1 ? '' : text.slice(split + 2);
+  const message = split === -1 ? '' : text.slice(split + 2).replace(/\n+$/, '');
   let tree = '';
   const parents: string[] = [];
   let author = '';

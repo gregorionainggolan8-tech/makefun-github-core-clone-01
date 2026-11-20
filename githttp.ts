@@ -138,7 +138,9 @@ function objectsForFetch(repo: Repo, args: FetchArgs): { objects: GitObject[]; s
   const wanted = args.wants.filter((oid) => oid !== ZERO_OID);
   const stopAt = new Set(args.shallow);
   const reach = reachable(repo.objects, wanted, { depth: args.depth ?? undefined, stopAt });
-  const haveReach = args.haves.length > 0 ? reachable(repo.objects, args.haves).objects : new Set<string>();
+  // What the client already holds: reachable from its haves, but never through its
+  // shallow boundaries — their ancestors are exactly what a deepen must still deliver.
+  const haveReach = args.haves.length > 0 ? reachable(repo.objects, args.haves, { stopAt }).objects : new Set<string>();
   const send: GitObject[] = [];
   for (const sha of reach.objects) {
     if (haveReach.has(sha)) continue;

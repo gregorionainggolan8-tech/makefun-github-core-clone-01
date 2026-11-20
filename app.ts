@@ -132,7 +132,8 @@ export function createApp(): Server {
             }
           }
           const restSegments = path === '/api/v3' || path === '/api/v3/' ? [''] : path.slice('/api/v3/'.length).split('/');
-          const rawUrl = `http://forge${path}${url.search}`;
+          const host = req.headers.host ?? 'forge';
+          const rawUrl = `http://${host}${path}${url.search}`;
           const result = handleRest(store, method, restSegments, url.searchParams, rawUrl, body);
           if (result.status === 204) {
             sendJson(res, 204, null, result.headers);

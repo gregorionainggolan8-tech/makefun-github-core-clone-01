@@ -287,11 +287,14 @@ export class Store {
 
   /** Is this pull request mergeable (no file changed on both sides with different results)? */
   pullConflict(repo: Repo, pull: Pull): boolean {
-    const base = mergeBase(repo.objects, pull.headSha, pull.baseSha);
+    // The base is the branch's live tip, not the tip recorded when the pull opened:
+    // a merge that landed after the pull opened can conflict with it.
+    const baseTip = repo.refs.get(`refs/heads/${pull.baseRef}`) ?? pull.baseSha;
+    const base = mergeBase(repo.objects, pull.headSha, baseTip);
     if (base === null) return false;
     const baseFlat = this.treeFlat(repo, base) ?? new Map();
     const headFlat = this.treeFlat(repo, pull.headSha) ?? new Map();
-    const targetFlat = this.treeFlat(repo, pull.baseSha) ?? new Map();
+    const targetFlat = this.treeFlat(repo, baseTip) ?? new Map();
     const paths = new Set([...baseFlat.keys(), ...headFlat.keys(), ...targetFlat.keys()]);
     for (const path of paths) {
       const b = baseFlat.get(path)?.sha;
@@ -308,10 +311,11 @@ export class Store {
   mergePull(repo: Repo, pull: Pull): string | null {
     if (pull.state !== 'open' || pull.merged) return null;
     if (this.pullConflict(repo, pull)) return null;
-    const base = mergeBase(repo.objects, pull.headSha, pull.baseSha);
+    const baseTip = repo.refs.get(`refs/heads/${pull.baseRef}`) ?? pull.baseSha;
+    const base = mergeBase(repo.objects, pull.headSha, baseTip);
     const baseFlat = base ? this.treeFlat(repo, base) ?? new Map() : new Map();
     const headFlat = this.treeFlat(repo, pull.headSha) ?? new Map();
-    const targetFlat = this.treeFlat(repo, pull.baseSha) ?? new Map();
+    const targetFlat = this.treeFlat(repo, baseTip) ?? new Map();
     const merged = new Map(targetFlat);
     const paths = new Set([...baseFlat.keys(), ...headFlat.keys()]);
     for (const path of paths) {
@@ -324,7 +328,7 @@ export class Store {
     }
     const treeSha = buildTreeFromFlat(repo.objects, merged);
     const message = `Merge pull request #${pull.number} from ${VIEWER_LOGIN}:${pull.headRef}`;
-    const lines = [`tree ${treeSha}`, `parent ${pull.baseSha}`];
+    const lines = [`tree ${treeSha}`, `parent ${baseTip}`];
     lines.push(`author ${VIEWER_NAME} <${VIEWER_EMAIL}> ${FIXED_EPOCH} +0000`);
     lines.push(`committer ${VIEWER_NAME} <${VIEWER_EMAIL}> ${FIXED_EPOCH} +0000`);
     const commitSha = repo.objects.put('commit', Buffer.from(`${lines.join('\n')}\n\n${message}\n`, 'utf8'));
